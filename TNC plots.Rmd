@@ -1,0 +1,223 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+CleanedMergedData <- readRDS(file = "22-0606_CleanedMergedData_DESeq2NormalizedReads.rds")
+
+#### Establish a column for labeling as Follicular, Papillary, or Transformed ####
+CleanedMergedData$Category <- "Benign"
+
+# Follicular lesions
+for(i in 1:nrow(CleanedMergedData)){
+  if(CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "NIFTP" |
+     CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "FC" |
+     CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "HC" |
+     CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "EFVPTC"){
+        CleanedMergedData$Category[i] <- "Follicular"
+  }
+}
+
+# Papillary lesions
+for(i in 1:nrow(CleanedMergedData)){
+  if(CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "IFVPTC" |
+     CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "PTC"){
+        CleanedMergedData$Category[i] <- "Papillary"
+  }
+}
+
+# Transformed lesion
+for(i in 1:nrow(CleanedMergedData)){
+  if(CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "PDTC" |
+     CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "ATC"){
+        CleanedMergedData$Category[i] <- "Transformed"
+  }
+}
+
+#### Create new variables to simplify the follicular diagnosis ####
+CleanedMergedData$Diagnosis_Simplified <- CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC
+for(i in 1:nrow(CleanedMergedData)){
+  if(CleanedMergedData$Diagnosis_Simplified[i] == "FA" | CleanedMergedData$Diagnosis_Simplified[i] == "HA"){
+    CleanedMergedData$Diagnosis_Simplified[i] <- "Benign"
+  }
+  else if(CleanedMergedData$Diagnosis_Simplified[i] == "MNG"){
+    CleanedMergedData$Diagnosis_Simplified[i] <- "Benign"
+  }
+  else if(CleanedMergedData$Diagnosis_Simplified[i] == "FC" | CleanedMergedData$Diagnosis_Simplified[i] == "HC"){
+    CleanedMergedData$Diagnosis_Simplified[i] <- "WDTC"
+  }
+}
+
+# Simplify the papillary diagnosis
+for(i in 1:nrow(CleanedMergedData)){
+  if(CleanedMergedData$Diagnosis_Simplified[i] == "NIFTP" | CleanedMergedData$Diagnosis_Simplified[i] == "EFVPTC"){
+    CleanedMergedData$Diagnosis_Simplified[i] <- "WDTC"
+  }
+  else if(CleanedMergedData$Diagnosis_Simplified[i] == "PTC" | CleanedMergedData$Diagnosis_Simplified[i] == "IFVPTC"){
+    CleanedMergedData$Diagnosis_Simplified[i] <- "WDTC"
+  }
+}
+
+# Subset data to include only Local lesions
+CleanedMergedData_Local <- CleanedMergedData %>% subset(Location.type == "Primary" | Location.type == "Localdisease")
+
+# Restrict to histotypes of interest - Benign, WDTC, ATC (note: no PDTC)
+CleanedMergedData_Local_Restricted <- CleanedMergedData_Local %>% subset(Diagnosis != "HT" &
+                                                                         Diagnosis != "PDTC")
+### WNT2
+CleanedMergedData_Local_Restricted$WNT2 <- log(CleanedMergedData_Local_Restricted$WNT2+1, 2)
+
+# Boxplot of WNT2
+max(CleanedMergedData_Local_Restricted$WNT2) # Use this value to set the plot max value (e.g., if 8.5, would se as 9)
+min(CleanedMergedData_Local_Restricted$WNT2) # Use this value to set the plot min value (e.g., if 0.5 would set as 0)
+# use the above 2 values to set the breaks for the plot
+plot <- ggplot(CleanedMergedData_Local_Restricted, aes(Diagnosis_Simplified, WNT2)) +
+  geom_boxplot(outlier.size = -1, 
+               aes(fill = Diagnosis_Simplified),
+               alpha = 0.4, 
+               show.legend = FALSE) + 
+  geom_jitter(aes(),
+              position = position_jitter(width = 0.1, height = 0),
+              size = 1.5, 
+              alpha = 0.7,
+              show.legend = FALSE) +
+  scale_fill_manual(values = c("#FF458F", "#454545","#FF007F")) +
+  labs (x = "Diagnosis", y = "log2(WNT2)") + 
+  theme_classic() + 
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5), 
+    axis.title.x = element_text(face = "bold", size = 14.5), 
+    axis.title.y = element_text(face = "bold", size = 12),
+    axis.text.x = element_text(face = "bold", size = 10.5),
+    axis.text.y = element_text(face = "bold", size = 16)) +
+  scale_x_discrete(name ="Diagnosis", limits = c("Benign", "WDTC", "ATC")) +
+  scale_y_continuous(breaks = c(0, 2, 4, 6, 8, 10),
+                     limits = c(0, 10)) 
+# Not, max and min values need to be restricted for each new gene that is plotted
+pngfile <- fs::path(knitr::fig_path(),  "Wnt2.png")
+agg_png(pngfile, width = 10, height = 10, units = "cm", res = 300)
+plot(plot)
+invisible(dev.off())
+knitr::include_graphics(pngfile)
+
+# WNT2 stats
+kruskal.test(WNT2 ~ Diagnosis_Simplified, data = CleanedMergedData_Local_Restricted) #returned 0.07701
+pairwise.wilcox.test(CleanedMergedData_Local_Restricted$WNT2, CleanedMergedData_Local_Restricted$Diagnosis_Simplified, # No significant resutls
+                     p.adjust.method = "bonferroni")
+
+```
+```{r}
+CleanedMergedData <- readRDS(file = "22-0606_CleanedMergedData_DESeq2NormalizedReads.rds")
+
+#### Establish a column for labeling as Follicular, Papillary, or Transformed ####
+CleanedMergedData$Category <- "Benign"
+
+# Follicular lesions
+for(i in 1:nrow(CleanedMergedData)){
+  if(CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "NIFTP" |
+     CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "FC" |
+     CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "HC" |
+     CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "EFVPTC"){
+        CleanedMergedData$Category[i] <- "Follicular"
+  }
+}
+
+# Papillary lesions
+for(i in 1:nrow(CleanedMergedData)){
+  if(CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "IFVPTC" |
+     CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "PTC"){
+        CleanedMergedData$Category[i] <- "Papillary"
+  }
+}
+
+# Transformed lesion
+for(i in 1:nrow(CleanedMergedData)){
+  if(CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "PDTC" |
+     CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC[i] == "ATC"){
+        CleanedMergedData$Category[i] <- "Transformed"
+  }
+}
+
+#### Create new variables to simplify the follicular diagnosis ####
+CleanedMergedData$Diagnosis_Simplified <- CleanedMergedData$Diagnosis.with.iFVPTC.and.eFVPTC
+for(i in 1:nrow(CleanedMergedData)){
+  if(CleanedMergedData$Diagnosis_Simplified[i] == "FA" | CleanedMergedData$Diagnosis_Simplified[i] == "HA"){
+    CleanedMergedData$Diagnosis_Simplified[i] <- "Benign"
+  }
+  else if(CleanedMergedData$Diagnosis_Simplified[i] == "MNG"){
+    CleanedMergedData$Diagnosis_Simplified[i] <- "Benign"
+  }
+  else if(CleanedMergedData$Diagnosis_Simplified[i] == "FC" | CleanedMergedData$Diagnosis_Simplified[i] == "HC"){
+    CleanedMergedData$Diagnosis_Simplified[i] <- "WDTC"
+  }
+}
+
+# Simplify the papillary diagnosis
+for(i in 1:nrow(CleanedMergedData)){
+  if(CleanedMergedData$Diagnosis_Simplified[i] == "NIFTP" | CleanedMergedData$Diagnosis_Simplified[i] == "EFVPTC"){
+    CleanedMergedData$Diagnosis_Simplified[i] <- "WDTC"
+  }
+  else if(CleanedMergedData$Diagnosis_Simplified[i] == "PTC" | CleanedMergedData$Diagnosis_Simplified[i] == "IFVPTC"){
+    CleanedMergedData$Diagnosis_Simplified[i] <- "WDTC"
+  }
+}
+
+# Subset data to include only Local lesions
+CleanedMergedData_Local <- CleanedMergedData %>% subset(Location.type == "Primary" | Location.type == "Localdisease")
+
+# Restrict to histotypes of interest - Benign, WDTC, ATC (note: no PDTC)
+CleanedMergedData_Local_Restricted <- CleanedMergedData_Local %>% subset(Diagnosis != "HT" &
+                                                                         Diagnosis != "PDTC")
+### TNC
+CleanedMergedData_Local_Restricted$RASSF5 <- log(CleanedMergedData_Local_Restricted$KLHL23+1, 2)
+
+# Boxplot of TNC
+max(CleanedMergedData_Local_Restricted$KLHL23) # Use this value to set the plot max value (e.g., if 8.5, would se as 9)
+min(CleanedMergedData_Local_Restricted$KLHL23) # Use this value to set the plot min value (e.g., if 0.5 would set as 0)
+# use the above 2 values to set the breaks for the plot
+plot <- ggplot(CleanedMergedData_Local_Restricted, aes(Diagnosis_Simplified, TNC)) +
+  geom_boxplot(outlier.size = -1, 
+               aes(fill = Diagnosis_Simplified),
+               alpha = 0.4, 
+               show.legend = FALSE) + 
+  geom_jitter(aes(),
+              position = position_jitter(width = 0.1, height = 0),
+              size = 1.5, 
+              alpha = 0.7,
+              show.legend = FALSE) +
+  scale_fill_manual(values = c("red", "#454545","#FF474C")) +
+  labs (x = "Diagnosis", y = "log2(TNC)") + 
+  theme_classic() + 
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5), 
+    axis.title.x = element_text(face = "bold", size = 14.5), 
+    axis.title.y = element_text(face = "bold", size = 12),
+    axis.text.x = element_text(face = "bold", size = 10.5),
+    axis.text.y = element_text(face = "bold", size = 16)) +
+  scale_x_discrete(name ="Diagnosis", limits = c("Benign", "WDTC", "ATC")) +
+  scale_y_continuous(breaks = c(0, 50, 100, 500),
+                     limits = c(0, 600)) 
+# Not, max and min values need to be restricted for each new gene that is plotted
+ggsave("24-0715_TNC_Boxplot.png", width = 3, height = 3, 
+       plot, dpi = 600)
+plot(plot)
+
+
+# TNC stats
+kruskal.test(TNC ~ Diagnosis_Simplified, data = CleanedMergedData_Local_Restricted) #returned 0.07701
+pairwise.wilcox.test(CleanedMergedData_Local_Restricted$RASSF5, CleanedMergedData_Local_Restricted$Diagnosis_Simplified, # No significant resutls
+                     p.adjust.method = "bonferroni")
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+

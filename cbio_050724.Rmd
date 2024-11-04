@@ -1,0 +1,186 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+![]()
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*.
+
+```{r echo=TRUE}
+#Primary Lymph Node
+#transferred txt file to csv
+
+#library (ggplot2)
+#library(tidyverse)
+#library(ragg)
+
+PrimaryLymphNode <- read.csv("PrimaryLymph.csv")
+head(PrimaryLymphNode)
+new <- log2((PrimaryLymphNode$mRNA)+1)
+aspect_ratio <- 2.5
+height <- 7
+plot<-ggplot(PrimaryLymphNode, aes(x = LYMPH, y = new, fill = LYMPH)) +
+  geom_boxplot(outlier.size = -1, 
+               alpha = 0.4, 
+               show.legend = FALSE)+
+geom_jitter(aes(),
+              position = position_jitter(width = 0.1, height = 0),
+              size = 1.5, 
+              alpha = 0.7,
+              show.legend = FALSE) +
+  labs(y = "log2(TNC)", x = "Primary Lymph Node Presentation",colour="black") + scale_fill_manual(values = c("#f886bb", "#370140")) +
+     theme_classic() + 
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5), 
+    axis.title.x = element_text(face = "bold", size = 14.5), 
+    axis.title.y = element_text(face = "bold", size = 12),
+    axis.text.x = element_text(face = "bold", size = 10),
+    axis.text.y = element_text(face = "bold", size = 16)) +
+  scale_x_discrete(name ="Primary Lymph Node Presentation", limits = c("NO", "YES")) +
+  scale_y_continuous(breaks = c(0, 4, 8, 12, 16),
+                     limits = c(0, 16)) 
+x
+ggsave("outputs/24-1022_CGRNA_Met_Plots/PL.png", 
+       width = 3, height = 3, 
+       plot, dpi = 600)
+
+
+Lymphnode <- PrimaryLymphNode %>% subset(LYMPH == "YES" |
+                                              LYMPH == "NO")
+Lymphnode
+
+pairwise.wilcox.test(log2(Lymphnode$mRNA+1), Lymphnode$LYMPH, 
+                     p.adjust.method = "BH") #0.0026
+
+    wilcox.test((log2(Lymphnode$mRNA+1)) ~ Lymphnode$LYMPH, p.adjust.method = "bonferroni") #0.002587
+```
+
+```{r echo=TRUE}
+#extrathyroidal extension
+#transferred txt file to csv
+Extrathyroidal <- read.csv("extension.csv")
+head(Extrathyroidal)
+logextra <- log2((Extrathyroidal$mRNA)+1)
+# Specifically, I will merge "Moderate/Advanced (T4a)" with "Very Advanced (T4b)" to form "Moderate/Advanced (T4)
+Extrathyroidal$Extrathyroidal.Extension <- Extrathyroidal$Extrathyroidal.Extension
+for(i in 1:nrow(Extrathyroidal)){
+  if(Extrathyroidal$Extrathyroidal.Extension[i] == "Moderate/Advanced (T4a)"){
+    Extrathyroidal$Extrathyroidal.Extension[i] <- "T4"
+  }
+  else if(Extrathyroidal$Extrathyroidal.Extension[i] == "Very Advanced (T4b)"){
+    Extrathyroidal$Extrathyroidal.Extension[i] <- "T4"
+  }
+  else if(Extrathyroidal$Extrathyroidal.Extension[i] == "Minimal (T3)"){
+    Extrathyroidal$Extrathyroidal.Extension[i] <- "T3"
+  }
+}
+#plot 
+q<-ggplot(Extrathyroidal, aes(x = forcats::fct_infreq(Extrathyroidal.Extension), y = logextra, fill = Extrathyroidal.Extension)) +geom_boxplot(outlier.size = -1, 
+               aes(fill = Extrathyroidal.Extension),
+               alpha = 0.4, 
+               show.legend = FALSE) + 
+  geom_jitter(aes(),
+              position = position_jitter(width = 0.1, height = 0),
+              size = 1.5, 
+              alpha = 0.7,
+              show.legend = FALSE) +
+  labs(y = "log2(TNC)", x = "Extrathyroidal Extension") +scale_fill_manual(values = c( "#ffbef3","#ff95c0","#ff6c88")) +
+    theme_classic() + 
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5), 
+    axis.title.x = element_text(face = "bold", size = 14.5), 
+    axis.title.y = element_text(face = "bold", size = 12),
+    axis.text.x = element_text(face = "bold", size = 10),
+    axis.text.y = element_text(face = "bold", size = 16)) +
+  scale_x_discrete(name ="Extrathyroidal Extension", limits = c("None", "T3","T4")) +
+  scale_y_continuous(breaks = c(0, 4, 8, 12, 16),
+                     limits = c(0, 16)) 
+# Not, max and min values need to be restricted for each new gene that is plotted
+ggsave("outputs/24-1022_CGRNA_Met_Plots/24-1022_Thyroid_WDTC_BRS_Category_TNC_Boxplot.png", 
+       width = 3, height = 3, 
+       plot, dpi = 600)
+#stats
+Extrathyroidal_Stats <- Extrathyroidal %>% subset(Extrathyroidal.Extension == "None" |
+                                                             Extrathyroidal.Extension == "T3" |
+                                                             Extrathyroidal.Extension == "T4")
+res.aov <- aov(log2(Extrathyroidal$mRNA+1) ~ Extrathyroidal.Extension, data = Extrathyroidal_Stats)
+summary(res.aov)
+TukeyHSD(res.aov)
+
+pairwise.wilcox.test(log2(Extrathyroidal$mRNA+1), Extrathyroidal_Stats$Extrathyroidal.Extension, # this returned 0.2475
+                     p.adjust.method = "BH")
+#Results
+
+#   Df Sum Sq Mean Sq F value   Pr(>F)    
+#Extrathyroidal.Extension   2  141.3   70.63   17.72 3.74e-08 ***
+#Residuals                488 1945.5    3.99                     
+
+#Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+  #Tukey multiple comparisons of means
+    #95% family-wise confidence level
+
+#Fit: aov(formula = log2(Extrathyroidal$mRNA + 1) ~ Extrathyroidal.Extension, data = Extrathyroidal_Stats)$Extrathyroidal.Extension
+            # diff        lwr      upr     p adj
+#T3-None 0.9677047  0.4885252 1.446884 0.0000081
+#T4-None 1.9522503  0.8455325 3.058968 0.0001175
+#T4-T3   0.9845456 -0.1661341 2.135225 0.1105044
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r}
+BRAFRAS <- read.csv("BRAFRAS.csv")
+head(BRAFRAS)
+new <- log2((BRAFRAS$mRNA)+1)
+head(new)
+aspect_ratio <- 2.5
+height <- 7
+p<-ggplot(BRAFRAS, aes(x = Mutation, y = new, fill=Mutation)) +
+   geom_boxplot(outlier.size = -1, 
+               aes(fill = Mutation),
+               alpha = 0.4, 
+               show.legend = FALSE) + 
+  geom_jitter(aes(),
+              position = position_jitter(width = 0.1, height = 0),
+              size = 1.5, 
+              alpha = 0.7,
+              show.legend = FALSE) +
+  scale_fill_manual(values = c("lightblue", "#0099ff")) +
+  labs (x = "Mutation", y = "log2(TNC)") + 
+  theme_classic() + 
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5), 
+    axis.title.x = element_text(face = "bold", size = 14.5), 
+    axis.title.y = element_text(face = "bold", size = 12),
+    axis.text.x = element_text(face = "bold", size = 10),
+    axis.text.y = element_text(face = "bold", size = 16)) +
+  scale_x_discrete(name ="Mutation", limits = c("Ras-like", "Braf-like")) +
+  scale_y_continuous(breaks = c(0, 4, 8, 12, 16),
+                     limits = c(0, 16)) 
+
+
+# I'm explicitly calling the device functions so you can see the dimensions 
+# used
+ggsave("outputs/24-1022_CGRNA_Met_Plots/24-1022_Thyroid_WDTC_BRS_Category_TNC_Boxplot.png", 
+       width = 3, height = 3, 
+       plot, dpi = 600)
+
+BRAFRAS1 <- BRAFRAS %>% subset(Mutation == "Ras-like" |
+                                              Mutation == "Braf-like")
+
+pairwise.wilcox.test(log2(BRAFRAS1$mRNA+1), BRAFRAS1$Mutation, 
+                     p.adjust.method = "bonferroni") #0.0026
+
+    wilcox.test((log2(BRAFRAS1$mRNA+1)) ~ BRAFRAS1$Mutation, p.adjust.method = "bonferroni") #0.002587
+```
